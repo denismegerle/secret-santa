@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Secret Santa — Sessions (GitHub Pages)</title>
+<style>
+  /* ===== Theme tokens ===== */
+  :root{
+    color-scheme: dark light;
+    --bg:#0d1117; --bg2:#0d1117; --card:#0f1525; --card-2:#121a31;
+    --muted:#9aa4bf; --text:#eef2ff; --sub:#cad3ff;
+    --accent:#3b82f6; --accent-2:#06b6d4; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    --ring:rgba(125,211,252,.45); --border:rgba(255,255,255,.10);
+  }
+  :root[data-theme="light"]{
+    color-scheme: light;
+    --bg:#f7f8fb; --bg2:#f7f8fb; --card:#ffffff; --card-2:#ffffff;
+    --muted:#6b7280; --text:#111827; --sub:#374151;
+    --accent:#2563eb; --accent-2:#06b6d4; --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+    --ring:rgba(37,99,235,.30); --border:#e5e7eb;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+    color:var(--text);
+    background: var(--bg);
+  }
+
+  /* ===== Top bar (minimal) ===== */
+  .topbar{position:sticky; top:0; z-index:20; backdrop-filter: blur(6px);
+    background: color-mix(in oklab, var(--bg) 90%, #000 10%);
+    border-bottom:1px solid var(--border); padding:10px 16px}
+  .topbar .row{display:flex; align-items:center; gap:12px; max-width:1000px; margin:0 auto}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px}
+  .brand .logo{display:inline-grid; place-items:center; width:30px; height:30px; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+  .brand span{opacity:.9}
+  .spacer{flex:1}
+  .btn{appearance:none; border:1px solid var(--border); background:transparent; color:var(--text);
+    padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer; transition:.18s ease}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.primary{border:0; background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:white}
+  .icon{font-size:16px}
+
+  /* ===== Layout ===== */
+  .wrap{max-width:1000px; margin:28px auto 60px; padding:0 16px}
+  .hero{margin:8px 0 18px}
+  h1{margin:0 0 10px; font-size:28px; letter-spacing:.2px}
+  .lead{margin:0; color:var(--muted)}
+
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px}
+  .grid{display:grid; gap:16px}
+  .g2{grid-template-columns:1.2fr .8fr}
+  @media (max-width:960px){.g2{grid-template-columns:1fr}}
+
+  label{font-weight:700; display:block; margin:8px 0}
+  textarea,input,select{width:100%; padding:14px 16px; border-radius:12px; border:1px solid var(--border);
+    background:var(--card-2); color:var(--text); outline:none; transition: box-shadow .18s ease, border-color .18s ease}
+  textarea{min-height:140px; resize:vertical}
+  textarea:focus, input:focus, select:focus{border-color:var(--ring); box-shadow:0 0 0 4px color-mix(in oklab, var(--ring) 100%, transparent)}
+
+  .muted{color:var(--muted)}
+  .divider{height:1px; background:var(--border); margin:16px 0}
+  .tiny{font-size:12px}
+
+  /* ===== Settings (minimal rows) ===== */
+  .settings{display:grid; gap:8px}
+  .setting-line{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0}
+  .setting-line label{margin:0; cursor:pointer; display:flex; flex-direction:column; gap:2px}
+  .s-title{font-weight:700}
+  .s-desc{font-size:12px; color:var(--muted)}
+  .toggle{width:18px; height:18px; accent-color:var(--accent)}
+  .detail{margin:4px 0 0 0; padding:10px 12px; border-left:2px solid var(--border); border-radius:6px}
+  .hide{display:none}
+
+  /* ===== Session grid ===== */
+  .gridNames{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .nameBtn{display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 16px; border-radius:12px; background:var(--card-2);
+    border:1px solid var(--border); font-weight:800; letter-spacing:.3px; cursor:pointer; transition:.18s ease}
+  .nameBtn:hover{transform:translateY(-1px)}
+  .nameBtn[disabled]{opacity:.55; cursor:not-allowed; transform:none}
+  .tag{font-size:12px; opacity:.85; padding:6px 8px; border-radius:10px; border:1px solid var(--border)}
+  .tag.ok{border-color:color-mix(in oklab, var(--ok) 40%, var(--border)); color:color-mix(in oklab, var(--ok) 80%, var(--text) 20%)}
+
+  .progress{height:8px; background:transparent; border:1px solid var(--border); border-radius:999px; overflow:hidden}
+  .bar{height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .25s ease}
+
+  /* ===== Modal ===== */
+  .overlay{position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:50; backdrop-filter: blur(5px); background:color-mix(in oklab, var(--bg) 20%, #000 50%)}
+  .reveal{background:var(--card); border:1px solid var(--border); border-radius:18px; padding:24px 22px; max-width:720px; margin:0 18px; text-align:center}
+  .big{font-size:42px; font-weight:900; letter-spacing:.3px; margin:8px 0 6px}
+  .subtle{opacity:.8}
+  .note{margin-top:10px; color:var(--muted)}
+
+  .row{display:flex; gap:12px; align-items:center}
+  .row>*{flex:1}
+  .right{justify-content:flex-end}
+  .copybtn{min-width:110px}
+</style>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="row">
+    <div class="brand">
+      <div class="logo">🎁</div>
+      <span>Secret&nbsp;Santa</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="btnTheme" title="Toggle theme"><span class="icon" id="themeIcon">🌙</span></button>
+    <button class="btn" id="btnShare" title="Copy link">Share</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <h1>Gift pairing, made simple</h1>
+    <p class="lead">Create a session and share one link. Everyone sees their name as a button. Click to reveal your partner; the button locks for all.</p>
+  </section>
+
+  <!-- Admin / Creator View -->
+  <section id="view-admin" class="card grid g2 hide" aria-labelledby="admin-title">
+    <div>
+      <h2 id="admin-title">Create session</h2>
+      <label for="names">Names (one per line)</label>
+      <textarea id="names" aria-label="Names" placeholder="Alice&#10;Bob&#10;Charlie&#10;…"></textarea>
+
+      <div class="settings">
+        <!-- No mutual pairs -->
+        <div class="setting-line">
+          <label for="noTwo">
+            <span class="s-title">No mutual pairs</span>
+            <span class="s-desc">Forbid A↔B two-cycles</span>
+          </label>
+          <input type="checkbox" id="noTwo" class="toggle" checked>
+        </div>
+
+        <!-- Exclude pairs -->
+        <div class="setting-line">
+          <label for="exToggle">
+            <span class="s-title">Exclude specific pairs</span>
+            <span class="s-desc">Disallow giver→receiver edges</span>
+          </label>
+          <input type="checkbox" id="exToggle" class="toggle">
+        </div>
+        <div id="exDetail" class="detail hide">
+          <label for="exList" class="tiny">One per line, e.g. <code>Alice-&gt;Bob</code></label>
+          <textarea id="exList" placeholder="Alice->Bob&#10;Charlie->Dana"></textarea>
+        </div>
+
+        <!-- PINs -->
+        <div class="setting-line">
+          <label for="pinToggle">
+            <span class="s-title">Require per-person PIN</span>
+            <span class="s-desc">Prevents accidental reveals</span>
+          </label>
+          <input type="checkbox" id="pinToggle" class="toggle">
+        </div>
+        <div id="pinDetail" class="detail hide">
+          <div class="row" style="gap:8px">
+            <label style="flex:0 0 180px">PIN length
+              <select id="pinLen">
+                <option value="4" selected>4 digits</option>
+                <option value="6">6 digits</option>
+              </select>
+            </label>
+            <div class="tiny muted">PINs are generated for you; stored as SHA‑256 hashes.</div>
+          </div>
+        </div>
+
+        <!-- Reveal window -->
+        <div class="setting-line">
+          <label for="winToggle">
+            <span class="s-title">Reveal window</span>
+            <span class="s-desc">Start + optional end (UTC)</span>
+          </label>
+          <input type="checkbox" id="winToggle" class="toggle">
+        </div>
+        <div id="winDetail" class="detail hide">
+          <div class="row" style="gap:8px">
+            <label>Start (datetime‑local, stored as UTC)
+              <input type="datetime-local" id="startAt" />
+            </label>
+            <label>End (optional)
+              <input type="datetime-local" id="endAt" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Message for recipients -->
+        <div class="setting-line">
+          <label for="noteToggle">
+            <span class="s-title">Message for recipients</span>
+            <span class="s-desc">Shown in reveal modal</span>
+          </label>
+          <input type="checkbox" id="noteToggle" class="toggle">
+        </div>
+        <div id="noteDetail" class="detail hide">
+          <textarea id="noteText" placeholder="Budget €20–25. Exchange on Dec 23."></textarea>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <div class="tiny muted" id="namesHint">0 names</div>
+        <div class="spacer"></div>
+        <button class="btn primary" id="btnCreate">Create session</button>
+      </div>
+
+      <div class="divider"></div>
+      <p class="tiny" id="authInfo">Auth: <em>initializing…</em></p>
+    </div>
+
+    <div>
+      <h3>Share link</h3>
+      <div id="share" class="muted tiny">Create a session to get a link.</div>
+      <div id="pinListWrap" class="hide">
+        <div class="divider"></div>
+        <h4>PINs (organizer only)</h4>
+        <div id="pinList" class="tiny"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="btnCsv">Copy PINs CSV</button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div id="adminStatus" class="tiny muted"></div>
+    </div>
+  </section>
+
+  <!-- Shared Session View -->
+  <section id="view-session" class="card hide" aria-labelledby="sess-title">
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2">
+        <h2 id="sess-title">Session</h2>
+        <div id="sessInfo" class="muted tiny">Loading session…</div>
+      </div>
+      <div style="flex:1">
+        <div class="progress" aria-label="Reveal progress"><div class="bar" id="progBar" style="width:0%"></div></div>
+        <div id="sessionStatus" class="tiny muted" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div id="nameGrid" class="gridNames" aria-live="polite"></div>
+  </section>
+</div>
+
+<div class="overlay" id="ov" role="dialog" aria-modal="true" aria-labelledby="reveal-title">
+  <div class="reveal">
+    <div class="subtle" id="reveal-title">Your person is</div>
+    <div class="big" id="target">?</div>
+    <div id="note" class="note"></div>
+    <div class="row right" style="margin-top:12px">
+      <button class="btn" id="closeOv">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Theme handling =====
+const THEME_KEY = 'ss_theme';
+function setTheme(mode){
+  document.documentElement.dataset.theme = mode;
+  localStorage.setItem(THEME_KEY, mode);
+  document.querySelector('#themeIcon').textContent = mode === 'light' ? '🌞' : '🌙';
+}
+(function initTheme(){
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  setTheme(saved || (prefersLight ? 'light' : 'dark'));
+})();
+
+document.querySelector('#btnTheme').addEventListener('click', ()=>{
+  const cur = document.documentElement.dataset.theme || 'dark';
+  setTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// ===== Firebase web config (PUBLIC identifiers; do not put secrets here) =====
+const firebaseConfig = {
+  apiKey: "AIzaSyA0tQ3pn4M-iPSa7lbKnCAt9cdPORulWPI",
+  authDomain: "secret-santa-bd69d.firebaseapp.com",
+  projectId: "secret-santa-bd69d",
+  storageBucket: "secret-santa-bd69d.firebasestorage.app",
+  messagingSenderId: "864686307297",
+  appId: "1:864686307297:web:ec2c3f022d704363d844a0",
+  measurementId: "G-V6V6R54R0X"
+};
+// ============================================================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Auth readiness & helper
+let AUTH_READY = false;
+let authReadyResolvers = [];
+function waitForAuth(){ return AUTH_READY ? Promise.resolve() : new Promise(res=>authReadyResolvers.push(res)); }
+
+auth.onAuthStateChanged((u)=>{
+  AUTH_READY = !!u;
+  const info = document.querySelector('#authInfo');
+  if(info) info.textContent = AUTH_READY ? `Auth: ready (uid ${u.uid.slice(0,6)}…)` : 'Auth: not signed in';
+  if (AUTH_READY) { authReadyResolvers.splice(0).forEach(fn=>fn()); initApp(); }
+});
+
+auth.signInAnonymously().catch((e)=>{
+  console.error('Anon auth error', e);
+  alert('Anonymous auth failed. In Firebase Auth → Authorized domains, add your GitHub Pages domain (e.g., yourname.github.io).');
+});
+
+// UI helpers
+const $ = (s)=>document.querySelector(s);
+const viewAdmin = $('#view-admin');
+const viewSession  = $('#view-session');
+const ov = $('#ov');
+const targetEl = $('#target');
+const noteEl = $('#note');
+const progBar = $('#progBar');
+const namesEl = $('#names');
+
+const exToggle = $('#exToggle');
+const exDetail = $('#exDetail');
+const pinToggle = $('#pinToggle');
+const pinDetail = $('#pinDetail');
+const winToggle = $('#winToggle');
+const winDetail = $('#winDetail');
+const noteToggle = $('#noteToggle');
+const noteDetail = $('#noteDetail');
+
+[ [exToggle,exDetail], [pinToggle,pinDetail], [winToggle,winDetail], [noteToggle,noteDetail] ]
+  .forEach(([t,d])=> t.addEventListener('change', ()=> d.classList.toggle('hide', !t.checked)));
+
+function parseQuery(){
+  const u = new URL(location.href);
+  return { sid: u.searchParams.get('session') || u.searchParams.get('s') };
+}
+function show(id){ [viewAdmin, viewSession].forEach(el=>el.classList.add('hide')); id.classList.remove('hide'); }
+
+// Utils
+function randToken(n=12){ return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(n)))).replace(/[^A-Za-z0-9]/g,'').slice(0, n+5); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const r=new Uint32Array(1); crypto.getRandomValues(r); const j=r[0]%(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function genPin(len){ const arr = new Uint8Array(len); crypto.getRandomValues(arr); return Array.from(arr, b=> (b%10)).join(''); }
+async function sha256Hex(s){ const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+function parseExclusions(lines, nameToIdx){
+  const forb = new Set();
+  const bad = [];
+  for(const raw of lines.map(s=>s.trim()).filter(Boolean)){
+    const m = raw.split(/\s*->\s*/);
+    if(m.length!==2){ bad.push(raw); continue; }
+    const g = m[0].trim(); const r = m[1].trim();
+    const gi = nameToIdx.get(g); const ri = nameToIdx.get(r);
+    if(gi==null || ri==null){ bad.push(raw); continue; }
+    forb.add(`${gi}:${ri}`);
+  }
+  return { forb, bad };
+}
+
+function solveAssignment(names, forbidSet){
+  const n = names.length;
+  // candidate lists (exclude self + forbidden)
+  const candidates = Array.from({length:n}, (_,i)=>{
+    const opts = [];
+    for(let j=0;j<n;j++) if(j!==i && !forbidSet.has(`${i}:${j}`)) opts.push(j);
+    return opts;
+  });
+
+  const order = Array.from({length:n}, (_,i)=>i).sort((a,b)=>candidates[a].length - candidates[b].length);
+  const used = new Array(n).fill(false);
+  const assign = new Array(n).fill(-1);
+
+  function dfs(k){
+    if(k===n) return true;
+    const i = order[k];
+    shuffle(candidates[i]);
+    for(const j of candidates[i]){
+      if(used[j]) continue;
+      assign[i]=j; used[j]=true;
+      if(dfs(k+1)) return true;
+      used[j]=false; assign[i]=-1;
+    }
+    return false;
+  }
+  const ok = dfs(0);
+  if(!ok) throw new Error('No valid assignment under current constraints. Try removing exclusions.');
+  return assign;
+}
+
+function hasTwoCycle(p){ for(let i=0;i<p.length;i++){ if(p[p[i]]===i && p[i]!==i) return true; } return false; }
+function breakTwoCycles(p, names, forbidSet, maxTries=300){
+  const n=p.length; const idxs=[...Array(n).keys()];
+  for(let t=0;t<maxTries;t++){
+    for(let i=0;i<n;i++){
+      const j=p[i]; if(p[j]===i){ // two-cycle
+        // try swap with k
+        for(const k of shuffle(idxs.slice())){
+          if(k===i||k===j) continue;
+          const a=p[k];
+          // try swap target of i and k
+          const ni=a, nk=j; // i->a, k->j
+          if(ni!==i && nk!==k && !forbidSet.has(`${i}:${ni}`) && !forbidSet.has(`${k}:${nk}`) && ni!==k && nk!==i){
+            const pj=p[i]; p[i]=ni; p[k]=nk; // temp
+            if(!hasTwoCycle(p)) return p;
+            // revert if still bad; try alternative
+            p[i]=pj; p[k]=a;
+          }
+        }
+      }
+    }
+    shuffle(p);
+  }
+  if(hasTwoCycle(p)) throw new Error('Could not break some mutual pairs; relax constraints or disable "no mutual pairs".');
+  return p;
+}
+
+async function initApp(){
+  await waitForAuth();
+  const {sid} = parseQuery();
+  if(!sid){ show(viewAdmin); setupAdmin(); }
+  else { show(viewSession); setupSharedSession(sid); }
+}
+
+// Share (top bar)
+$('#btnShare').addEventListener('click', ()=>{
+  const {sid} = parseQuery();
+  const url = location.origin + location.pathname + (sid ? `?session=${encodeURIComponent(sid)}` : '');
+  if(navigator.share){ navigator.share({ title:'Secret Santa', url }).catch(()=>{}); }
+  else { navigator.clipboard.writeText(url).then(()=> alert('Link copied')); }
+});
+
+// Admin view (create session & share one link)
+function setupAdmin(){
+  const hint = $('#namesHint');
+  const updateCount = ()=>{
+    const c = (namesEl.value || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).length;
+    hint.textContent = `${c} name${c===1?'':'s'}`;
+  };
+  namesEl.addEventListener('input', updateCount); updateCount();
+
+  $('#btnCreate').addEventListener('click', async ()=>{
+    await waitForAuth();
+    const names = namesEl.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(names.length < 3) return alert('At least 3 names.');
+
+    // Build name->idx map for exclusions
+    const nameToIdx = new Map(names.map((n,i)=>[n,i]));
+
+    // Exclusions
+    const useEx = exToggle.checked;
+    let forbidSet = new Set();
+    if(useEx){
+      const raw = ($('#exList').value || '').split(/\r?\n/);
+      const {forb, bad} = parseExclusions(raw, nameToIdx);
+      if(bad.length){ return alert('Unknown or malformed exclusions:\n'+bad.join('\n')); }
+      forbidSet = forb;
+    }
+
+    // Reveal window
+    const useWin = winToggle.checked;
+    let startTs = null, endTs = null;
+    if(useWin){
+      const s = $('#startAt').value; if(!s) return alert('Please set a start time.');
+      const e = $('#endAt').value;
+      const sDate = new Date(s); if(isNaN(+sDate)) return alert('Invalid start time');
+      startTs = firebase.firestore.Timestamp.fromDate(sDate);
+      if(e){ const eDate = new Date(e); if(isNaN(+eDate)) return alert('Invalid end time'); endTs = firebase.firestore.Timestamp.fromDate(eDate); }
+    }
+
+    // Recipient note
+    const useNote = noteToggle.checked;
+    const noteText = useNote ? ($('#noteText').value || '').trim() : '';
+
+    // No mutual pairs
+    const noTwo = $('#noTwo').checked;
+
+    // Solve mapping under constraints
+    let perm = solveAssignment(names, forbidSet);
+    if(noTwo && hasTwoCycle(perm)) perm = breakTwoCycles(perm, names, forbidSet);
+
+    // PINs
+    const usePins = pinToggle.checked;
+    const pinLen = parseInt($('#pinLen').value, 10) || 4;
+
+    const sid = randToken(16);
+    const sessRef = db.collection('sessions').doc(sid);
+    const ownerUid = auth.currentUser?.uid || 'anonymous';
+
+    // 1) Create session doc first
+    const sessData = { createdAt: new Date(), ownerUid, count:names.length, noTwo, settings:{ useEx, usePins, useWin, useNote } };
+    if(useWin){ sessData.revealStart = startTs; if(endTs) sessData.revealEnd = endTs; }
+    if(useNote){ sessData.recipientNote = noteText; }
+    await sessRef.set(sessData);
+
+    // 2) Create players and secrets
+    const batch = db.batch();
+    const players = [];
+    const pinPairs = [];
+    for(let i=0;i<names.length;i++){
+      const name = names[i];
+      const pid = randToken(12);
+      const target = names[perm[i]];
+      const playerDoc = { name, revealed:false, createdAt: new Date() };
+      if(usePins){ const pin = genPin(pinLen); playerDoc.pinHash = await sha256Hex(pin); pinPairs.push({name, pin}); }
+      players.push({pid,name});
+      batch.set(sessRef.collection('players').doc(pid), playerDoc);
+      batch.set(sessRef.collection('secrets').doc(pid), { target });
+    }
+    await batch.commit();
+
+    // Optional index
+    try { await sessRef.collection('meta').doc('players_index').set({ entries: players, createdAt: new Date().toISOString() }); }
+    catch(e){ console.warn('players_index write skipped (rules deny /meta).', e); }
+
+    // Share link UI
+    const base = location.origin + location.pathname;
+    const sessionUrl = `${base}?session=${encodeURIComponent(sid)}`;
+    const shareDiv = $('#share');
+    shareDiv.innerHTML = `
+      <div class="row">
+        <input id="shareLink" value="${sessionUrl}" readonly />
+        <button class="btn copybtn" id="copyBtn">Copy</button>
+      </div>
+      <div class="tiny muted" style="margin-top:8px">Share this URL. Everyone will see all names and can reveal their own.</div>
+    `;
+    $('#copyBtn').onclick = ()=>{ navigator.clipboard.writeText(sessionUrl).then(()=>{ const b=$('#copyBtn'); const t=b.textContent; b.textContent='Copied!'; setTimeout(()=>b.textContent=t, 1200); }); };
+
+    // PINs list (organizer view only)
+    const pinWrap = $('#pinListWrap');
+    const pinList = $('#pinList');
+    if(usePins){
+      pinWrap.classList.remove('hide');
+      const csv = ['name,pin'];
+      pinList.innerHTML = pinPairs.map(p=>`<div>${p.name}: <b>${p.pin}</b></div>`).join('');
+      pinPairs.forEach(p=>csv.push(`${p.name},${p.pin}`));
+      $('#btnCsv').onclick = ()=>{ navigator.clipboard.writeText(csv.join('\n')).then(()=>alert('PINs CSV copied')); };
+    } else {
+      pinWrap.classList.add('hide'); pinList.innerHTML='';
+    }
+
+    // Live status for creator
+    attachSharedStatus(sessRef, sid);
+  });
+}
+
+// Shared Session page — anyone with the link
+function setupSharedSession(sid){
+  const sessRef = db.collection('sessions').doc(sid);
+  const info = $('#sessInfo');
+  info.textContent = `Session: ${sid}`;
+  attachSharedStatus(sessRef, sid);
+}
+
+function attachSharedStatus(sessRef, sid){
+  const grid = $('#nameGrid');
+  const statusDiv = $('#sessionStatus');
+
+  const players = new Map(); // pid -> {name,revealed}
+
+  function render(){
+    grid.innerHTML = '';
+    let done = 0; const total = players.size;
+    [...players.entries()].sort((a,b)=>a[1].name.localeCompare(b[1].name)).forEach(([pid, pl])=>{
+      if(pl.revealed) done++;
+      const btn = document.createElement('button');
+      btn.className = 'nameBtn';
+      btn.disabled = !!pl.revealed;
+      btn.innerHTML = `<span>${pl.name}</span><span class="tag ${pl.revealed?'ok':''}">${pl.revealed?'Revealed':'Reveal'}</span>`;
+      btn.addEventListener('click', ()=>confirmAndReveal(sessRef, sid, pid, pl.name));
+      grid.appendChild(btn);
+    });
+    statusDiv.textContent = `Revealed: ${done} / ${total}`;
+    const pct = total? Math.round(done/total*100) : 0; progBar.style.width = pct + '%';
+  }
+
+  // Prefer index; fall back to collection
+  sessRef.collection('meta').doc('players_index').get().then(idx=>{
+    if(idx.exists){
+      const {entries=[]} = idx.data();
+      entries.forEach(e=>players.set(e.pid, {name:e.name, revealed:false}));
+      render();
+      for(const e of entries){
+        sessRef.collection('players').doc(e.pid).onSnapshot(doc=>{
+          if(doc.exists){ const d = doc.data(); players.set(doc.id, {name:e.name, revealed:!!d.revealed}); render(); }
+        }, err=>{ console.error('Player doc listen error', err); });
+      }
+    } else {
+      sessRef.collection('players').onSnapshot(snap=>{
+        players.clear();
+        snap.forEach(doc=>{ const d=doc.data(); players.set(doc.id, {name:d.name, revealed:!!d.revealed}); });
+        render();
+      }, err=>{
+        console.error('Players subscribe error', err);
+        grid.innerHTML = `<span class='tiny' style='color:var(--err)'>Cannot list players. Publish rules with <code>allow read</code> on <code>players</code>, or recreate the session after enabling /meta index.</span>`;
+      });
+    }
+  }).catch(err=>{
+    console.error('Index read error', err);
+    grid.innerHTML = `<span class='tiny' style='color:var(--err)'>Cannot load session index. Check Firestore rules.</span>`;
+  });
+}
+
+async function confirmAndReveal(sessRef, sid, pid, name){
+  // Pull session + player state
+  const sess = await sessRef.get();
+  const sdata = sess.data() || {};
+  // Reveal window checks (client-side)
+  const now = new Date();
+  if(sdata.revealStart && now < sdata.revealStart.toDate()){
+    alert('Reveals are not open yet.'); return;
+  }
+  if(sdata.revealEnd && now > sdata.revealEnd.toDate()){
+    alert('Reveals have closed.'); return;
+  }
+
+  // Optional PIN gate
+  const playerRef = sessRef.collection('players').doc(pid);
+  const secretRef = sessRef.collection('secrets').doc(pid);
+  const snap = await playerRef.get();
+  if(!snap.exists) return alert('Player not found.');
+  if(snap.data().revealed) return alert('Already revealed.');
+  const pinHash = snap.data().pinHash;
+  if(pinHash){
+    const pin = prompt(`Enter your PIN for ${name}`);
+    if(!pin) return;
+    const h = await sha256Hex(pin.trim());
+    if(h !== pinHash){ alert('Wrong PIN.'); return; }
+  } else {
+    if(!confirm(`Are you ${name}?`)) return;
+  }
+
+  try{
+    await waitForAuth();
+    // Flip revealed (rules also enforce server-side time window)
+    await playerRef.update({ revealed:true, revealedAt: new Date() });
+
+    const sec = await secretRef.get();
+    const tgt = sec.exists ? sec.data().target : '(missing)';
+    targetEl.textContent = tgt;
+    noteEl.textContent = sdata.recipientNote ? sdata.recipientNote : '';
+    ov.style.display='flex';
+  }catch(e){
+    console.error('Reveal error', e);
+    alert('Reveal failed due to permissions or time window. Ensure Anonymous Auth is enabled, rules are published, and your domain is authorized.');
+  }
+}
+
+$('#closeOv').addEventListener('click', ()=>{ ov.style.display='none'; });
+
+/* =======================
+   Minimal self-tests (console)
+   ======================= */
+(function selfTests(){
+  try {
+    const raw = "Alice\nBob\r\nCharlie\n\n";
+    const arr = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    console.assert(arr.length===3 && arr[0]==='Alice' && arr[1]==='Bob' && arr[2]==='Charlie', 'Split test failed');
+
+    // exclusions parse
+    const {forb,bad} = parseExclusions(['Alice->Bob','X->Y'], new Map([['Alice',0],['Bob',1]]));
+    console.assert(forb.has('0:1') && bad.length===1, 'Exclusion parse');
+
+    // assignment basic
+    const names = ['A','B','C','D'];
+    const p = solveAssignment(names, new Set());
+    console.assert(p.every((v,i)=>v!==i), 'Derangement basic');
+
+    console.log('%cSelf-tests passed','color:#22c55e');
+  } catch(e){ console.warn('Self-tests error:', e); }
+})();
+</script>
+</body>
+</html>
